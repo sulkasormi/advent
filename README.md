@@ -5,7 +5,7 @@ The default settings are not entirely faithful to the original; they are aimed p
 
 Original game believed to be in public domain. No additional copyrights apply to the JavaScript port, although I would appreciate it if you don't remove my credit ;-)
 
-The port currently works best in a desktop environment; there are known issues in a mobile environment, especially with scrolling not triggering properly.
+The port currently works best in a desktop environment; there are known issues in a mobile environment, especially with scrolling not triggering properly. Tap the compass-like icon if a keyboard doesn't appear on mobile.
 
 To-do list:
 - Fix mobile bugs
