@@ -5,10 +5,9 @@ The default settings are not entirely faithful to the original; they are aimed p
 
 Original game believed to be in public domain. No additional copyrights apply to the JavaScript port, although I would appreciate it if you don't remove my credit ;-)
 
-The port currently works best in a desktop environment; there are known issues in a mobile environment, especially with scrolling not triggering properly. Tap the compass-like icon if a keyboard doesn't appear on mobile.
+NOTE: If the keyboard does not appear while playing on mobile, double-tap the screen or click the compass-like icon.
 
 To-do list:
-- Fix mobile bugs
 - Option to disable (more) dead end situations
 - Option to display the score
 - Handle dwarves after displaying room description
@@ -17,4 +16,3 @@ To-do list:
 - Verify that dropping the bird in cage works properly on resurrection
 - Check item placement on deaths after falls
 - Figure out why the game keeps saying "The grate is locked" in end room
-- Reimplement settings as a 2-column grid, one for values and one for labels?
