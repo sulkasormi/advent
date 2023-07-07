@@ -6,8 +6,7 @@
  *       Implement hints
  *       Verify that dropping the bird in cage works properly on resu 
  *       Check item placement on deaths after falls
- *       Figure out why the game keeps saying "The grate is locked" in end room
- *       Reimplement settings as a 2-column grid, one for values and one for labels? */
+ *       Figure out why the game keeps saying "The grate is locked" in end room */
 (function colossalCave(document) {
   var g = {}; /* game state */
   var H = {}; /* helper state */
@@ -35,6 +34,7 @@
   var ccText = document.getElementById("cctext");
   var ccInput = document.getElementById("ccinput");
   var ccParser = document.getElementById("ccparser");
+  var ccMobAdjuster = document.querySelector(".mobileAdjuster");
   var ccCursor = document.getElementById("ccCursor");
   var ccSizer = document.getElementById("ccinvisible");
   var ccTimer = document.getElementById("cctimer");
@@ -65,10 +65,17 @@
   var oldExpectInput = 0;
   var lineWidth = 72;
   var linePos = 0;
+  var flushTimer = 0;
   var clAlignMode = false; /* left-of-center text align */
   var newLineReady = false; /* hack for tracking newlines */
   var weirdBreaksMode = 0; /* another newline-related hack */
   var maxPit = 72; /* you guessed it, newline hack */
+  var assumeMobileMode = 0;
+  var wTracker = { oldX: 0, oldY: 0, x: 0, y: 0, minX: 0, minY: 0, maxY: 0, lastPaddingY: 0 };
+  var windowXSizeHistory = [];
+  var windowYSizeHistory = new Set();
+  var marginHackHistory = new Set();
+  var assumeProblemBrowser = !!(navigator.userAgent.match(/(?=.*(FxiOS|Firefox)\/\d+)(?=.*Mobile)/g)); /* urgh */
   const helper = "adventHelper";
   const setter = "adventSettings";
   const mTgts = {nowhere: 21, back: 8, look: 57, cave: 67, entrance: 64, depression: 63};
@@ -111,7 +118,7 @@
   };
   var lineBacker = (function() {
     var current = -1;
-    return function(key) {
+    return function(key = 0) {
       if (!key) { current = -1; return; }
       let doUpdate = false;
       switch (key) {
@@ -160,6 +167,51 @@
     };
   })();
 
+  /* Megahack for mobile environments */
+  function toggleMargin(hasMargin) {
+    if (hasMargin) ccMobAdjuster.classList.remove("nomargin");
+    else ccMobAdjuster.classList.add("nomargin");
+  }
+
+  function trackWindowSize() {
+    if (!wTracker.x) {
+      wTracker.x = window.innerWidth;
+      wTracker.y = window.innerHeight;
+      wTracker.minX = wTracker.x;
+      wTracker.minY = wTracker.y;
+      wTracker.maxY = wTracker.y;
+    }
+    wTracker.oldX = wTracker.x;
+    wTracker.oldY = wTracker.y;
+    wTracker.x = window.innerWidth;
+    wTracker.y = window.innerHeight;
+    if (wTracker.x < wTracker.minX) wTracker.minX = wTracker.x;
+    if (wTracker.y < wTracker.minY) wTracker.minY = wTracker.y;
+    if (wTracker.y > wTracker.maxY) wTracker.maxY = wTracker.y;
+    if ((!assumeMobileMode) && (wTracker.x < 600)) assumeMobileMode++;
+    if (!windowXSizeHistory.includes(wTracker.x)) {
+      windowXSizeHistory.push(wTracker.x);
+      if ((windowXSizeHistory.length > 2) && (Math.max(...windowXSizeHistory) >= 600)) assumeMobileMode -= 3;
+    }
+    windowYSizeHistory.add(wTracker.y);
+    if ((assumeMobileMode > 0) && (wTracker.oldX == wTracker.x)) {
+      let diff = wTracker.oldY - wTracker.y;
+      while (S.problemBrowser != assumeProblemBrowser) {
+        let abs = Math.abs(diff);
+        if ((abs >= 20) && (abs <= 120)) {
+          if (!marginHackHistory.has(abs)) {
+            marginHackHistory.add(abs);
+            document.documentElement.style.setProperty("--address-bar-adjuster", abs + "px");
+          }
+        }
+        toggleMargin(1);
+        if ((wTracker.y == wTracker.maxY) && (windowYSizeHistory.size > 3)) toggleMargin(0);
+        else if ((wTracker.y != wTracker.minY) && (marginHackHistory.has(wTracker.y - wTracker.minY))) toggleMargin(0);
+        break;
+      }
+    }
+  }
+
   function cls() {
     ccText.innerHTML = "";
   }
@@ -171,8 +223,8 @@
      * Fourth priority: If 72 columns, see if we can have 25 rows */
     let playArea = document.getElementById("playarea");
     function sizeIt(a) {
-      let pct = (a * 100).toFixed(2);
-      document.body.style.fontSize = pct + "%";
+      let px = (a * 16).toFixed(2);
+      document.documentElement.style.setProperty("--cc-font-size", px + "px");
     }
     sizeIt(1);
     ccSizer.style.display = "inline-block";
@@ -209,9 +261,7 @@
         simpleTestAdjuster *= (lines / 25);
       }
       sizeIt(simpleTestAdjuster);
-/*    console.log(wid());
-      console.log(tgtWid / 1.786);
-      console.log(lines); */
+      if (dbugFlg) console.log(`${wid()} ${tgtWid / 1.786} ${lines}`);
       while (wid() > tgtWid / 1.786) { /* paranoia */
         simpleTestAdjuster *= 0.995;
         sizeIt(simpleTestAdjuster);
@@ -283,6 +333,11 @@
       lineWidth = tgtLineWidth;
     }
     document.documentElement.style.setProperty("--align-width", alignWidth());
+    if (dbugFlg) {
+      currentTick = 19; /* big phony */
+      updateTick();
+    }
+    trackWindowSize();
     scroll();
   }
 
@@ -678,7 +733,6 @@
     wipe(T);
     H.highestSave = 0;
     H.gameId = 0;
-    H.fontSizeAdjuster = 100;
     /* S and T are initialized through iniOptions */
   }
   async function iniActMsg() {
@@ -814,9 +868,13 @@
       wipe(optIndices);
       gameReady |= 32;
       var ccForm = document.getElementById("ccinputform");
+      var ccFTbl = document.createElement("table");
       ccForm.addEventListener("change", function(e) {
         settingsReacter(e);        
       });
+      function tagMobility(el, status = 0) {
+        if (status) el.classList.add(status == 1 ? "nomobile" : "onlymobile");
+      }
       function numOptListener(e) {
         ctx = e.target;
         if (ctx.type != "number") return;
@@ -845,8 +903,11 @@
       for (let o of optList) {
         /* the visual implementation really should be 2 columns, 
          * one for values and one for labels, but I'm lazy */
+        var tr = document.createElement("tr");
+        tagMobility(tr, o.nomobile);
+        var td1 = document.createElement("td");
+        var td2 = document.createElement("td");
         var el = document.createElement("input");
-        if (o.nomobile) el.classList.add("nomobile");
         el.setAttribute("type", o.type);
         el.setAttribute("id", o.name);
         switch (o.type) {
@@ -862,21 +923,22 @@
         var lb = document.createElement("label");
         lb.setAttribute("for", o.name);
         lb.setAttribute("title", o.tooltip);
-        if (o.nomobile) lb.classList.add("nomobile");
-        lb.innerText = o.shortDesc;
-        ccForm.appendChild(el);
-        ccForm.appendChild(lb);
-        if (!o.nomobile) ccForm.innerHTML += "<br>";
-        else {
-          var b = document.createElement("span");
-          b.innerHTML = "<br>";
-          b.classList.add("nomobile");
-          ccForm.appendChild(b);
+        if (o.type == "number") {
+          tr.classList.add("cc-numrow");
+          tr.classList.add("clearfix");
         }
+        else tr.classList.add("cc-cbrow");
+        lb.innerText = o.shortDesc;
+        td1.appendChild(el);
+        td2.appendChild(lb);
+        tr.appendChild(td1);
+        tr.appendChild(td2);
+        ccFTbl.appendChild(tr);
         /* initialize settings */
         T[o.name] = o.default;
         optIndices[o.name] = o.index;
       }
+      ccForm.appendChild(ccFTbl);
       let buttonRow = document.createElement("div");
       buttonRow.classList.add("buttonrow");
       function appendCCFormButton(which) {
@@ -1325,10 +1387,11 @@
     if (h) text += (h + ":");
     if (m || text.length) text += (text.length ? m.toString().padStart(2, '0') : m) + ":";
     text += (text.length ? s.toString().padStart(2, '0') : s);
-/*    let bodySize = +(getComputedStyle(document.body).getPropertyValue("font-size").slice(0, -2));
+/*  let bodySize = +(getComputedStyle(document.body).getPropertyValue("font-size").slice(0, -2));
     ccTimer.style.fontSize = Math.max(80, 120 - Math.max(0, Math.ceil(text.length / 2) * 10 - 20)) + "%"; */
     ccTimer.style.fontSize = "120%";
-    ccTimer.innerHTML = text;
+    if (dbugFlg) ccTimer.innerHTML = (window.innerHeight) + "/" + (window.innerWidth); /* big phony */
+    else ccTimer.innerHTML = text;
   }
   function updateTick() {
     if (!currentTick) setTimerStatus(!g.turns);
@@ -1409,6 +1472,15 @@
     if (S.allowUpDown) lineBacker(); /* let lineBacker() know there is no line */
     cursorMove('End');
     linePos = 0;
+    if ((assumeMobileMode > 0) && (flushTimer == 0) && (demoMode != 0)) {
+      flushTimer = setTimeout(mobileFlush, 20); 
+    }
+  }
+
+  function mobileFlush() {
+    textInput = "";
+    flushInput();
+    flushTimer = 0;
   }
 
   function scroll() {
@@ -1558,7 +1630,9 @@
           else cursorMove('End');
           break;
         }
-        case 'PageUp':
+        case 'PageUp': {
+          if (assumeMobileMode > 0) break;
+        } /* fall through */
         case 'PageDown': {
           if (!S.allowPageUpDown) break;
         } /* fall through */
@@ -1567,6 +1641,10 @@
         default: break;
       }
       if ((evt.key == "Enter") || (evt.key == 'Demo')) {
+        if (flushTimer != 0) {
+          mobileFlush();
+          return;
+        };
         if (!textInput.length) return;
         switch (expectInput) {
           case 1: {
@@ -1613,6 +1691,10 @@
         if (S[a]) {
           startTimer();
         } else disableTimer();
+      }
+      else if (a === 'problemBrowser') {
+        if (S[a] == assumeProblemBrowser) toggleMargin(0); 
+        else trackWindowSize();
       }
       if (doTrack) g.modifications |= (1 << optIndices[a]);
     });
@@ -2383,6 +2465,7 @@ robject = ${robject} in doTrav`);
       rSpeak(132);
       g.closed = 1;
       disableInput(3);
+      scroll();
       yesHandler = () => { turn(); };
       return 1;
     }
@@ -2750,6 +2833,10 @@ robject = ${robject} in doTrav`);
     sizeCalc();
     ["resize","visibilitychange"].forEach((a) => {
       window.addEventListener(a, sizeCalc); });
+    /* Samsung Internet's dark mode makes the page unreadable unless we do this */
+    if (navigator.userAgent.match(/SamsungBrowser/i)) {
+      document.documentElement.style.setProperty("--text-color", "#fff");
+    }
     printf("Initializing... please wait\n");
     gameReady = 0;
     iniGameState();
@@ -2858,6 +2945,7 @@ robject = ${robject} in doTrav`);
           keyReacter({"key": "PageDown"});
         }
         else if ((expectInput == 1) || (expectInput == 2)) {
+          if (((g.turns < 2) && (wTracker.x < 600)) || (e.detail === 2)) keyReacter({"key": "End"});
         }
       });
       if (S.noFlicker) {
@@ -2866,6 +2954,7 @@ robject = ${robject} in doTrav`);
       if (S.allCaps) {
         document.getElementById("playarea").style.textTransform = "uppercase";
       }
+      if (S.problemBrowser == assumeProblemBrowser) toggleMargin(0);
     }
     else { /* on init this is done by checkLocalStorage 
             * (only if storage exists, but we can't track
@@ -3075,6 +3164,7 @@ robject = ${robject} in doTrav`);
     disableInput(3);
     rSpeak(216);
     rSpeak(218);
+    scroll();
     yesHandler = () => { disableInput(3); rSpeak(217); requestInput(); };
   }
 
