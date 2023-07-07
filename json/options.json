@@ -11,5 +11,6 @@
 {"name":"useTimer","type":"checkbox","default":0,"key":"T","index":9,"shortDesc":"Display timer","tooltip":"Displays a timer showing how much (real) time you have spent on your adventures. (Press F9 to reset the clock.)"},
 {"name":"noFlicker","type":"checkbox","default":0,"key":"F","index":10,"shortDesc":"Non-flickering cursor","tooltip":"Disables cursor flickering."},
 {"name":"allCaps","type":"checkbox","default":0,"key":"C","index":11,"shortDesc":"ALL-CAPS MODE","tooltip":"Displays all text in uppercase, emulating the feel of the original PDP-10 game."},
+{"name":"problemBrowser","type":"checkbox","default":0,"key":"%","index":14,"nomobile":2,"shortDesc":"Toggle scrolling tweaks","tooltip":"Toggles browser-specific visual optimizations that are undesirable on other browsers."},
 {"name":"axeHitPml","type":"number","default":330,"key":"A","index":12,"shortDesc":"Axe hit rate per 1000","tooltip":"Sets the deadliness of axe attacks as a permillage (default value is 330, as in the original game)."},
 {"name":"knifeHitPml","type":"number","default":95,"key":"N","index":13,"shortDesc":"Knife hit rate per 1000","tooltip":"Sets the deadliness of knife attacks as a permillage (default value is 95, as in the original game)."}]
