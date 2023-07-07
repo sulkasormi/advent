@@ -7,12 +7,17 @@
 	--hover-color: #b4b4f2;
 	--green-timer: #54fa00;
 	--red-timer: #f09;
+	--address-bar-adjuster: 56px;
+	--cc-font-size: 1.5vw;
+	--settings-row-height: calc(var(--cc-font-size) * 1.2);
+	--settings-row-padded: calc(var(--settings-row-height) - 2px);
 	box-sizing: border-box;
+	color-scheme: light dark;
 }
 
 body {
 	background: var(--bgcolor);
-	font-size: 1.5vw;
+	font-size: var(--cc-font-size);
 	font-family: Lucida Console, Inconsolata, Consolas, Courier, monospace;
 	color: var(--text-color);
 }
@@ -34,6 +39,16 @@ body {
 .ccParserContainer {
 	all: unset;
 	position: relative;
+}
+
+.mobileAdjuster {
+	height: 0px;
+	width: 100%;
+	margin-top: var(--address-bar-adjuster);
+}
+
+.mobileAdjuster.nomargin {
+	margin-top: 0px;
 }
 
 .clalign-helper {
@@ -85,6 +100,7 @@ body {
 	margin: 0 auto;
 }
 .buttonrow > * {
+	font-size: 80%;
 	margin: 0 0.6ch;
 }
 .buttonrow:last-child {
@@ -105,12 +121,13 @@ body {
   width: max-content;
   height: auto;
   max-height: calc(100vh - 2.75ch);
-  padding: 0.4ch 1.4ch 0.4ch 1ch;
+  padding: 0.26em 1.4ch 0.26em 1ch;
   margin-top: 1ch;
   font-size: 80%;
-  border-radius: 1.4ch;
+  border-radius: 0.85em;
 	display: none;
-	overflow-y: auto; 	
+	overflow-y: auto;
+	color-scheme: light;
 }
 .noscrollbar {
 	-ms-overflow-style: none; /* Edge */
@@ -388,19 +405,80 @@ body {
 	display: inline;
 }
 
+.settings table, .settings tr, .settings td {
+	all: unset;
+	border-spacing: 0;
+	border-collapse: collapse;
+}
+.settings tr {
+	display: block;
+	border: none;
+	height: var(--settings-row-height) !important;
+}
+.settings td {
+  position: relative;
+  display: table-cell;
+  border: none;
+  max-height: var(--settings-row-height);
+}
+.settings td:first-child {
+	max-width: 3.9ch;
+	min-width: 3.9ch;
+	padding: 0;
+	margin: 0 0 0;
+}
+.settings td:last-child {
+	padding: 0;
+	margin: 0;
+}
+.settings td:first-child *:first-child {
+	position: absolute;
+  top: 0;
+  right: calc(var(--fake-width) / 55); /* fixed for all values of ch */
+}
+.settings td * {
+	height: var(--settings-row-height);
+	box-sizing: border-box;
+}
 input[type="checkbox"] {
-	margin: 0 1ch 0 2.4ch;
+	vertical-align: top;
+	display: table-cell;
+	font-size: 1em;
+	width: calc((13px + var(--settings-row-padded)) / 2);
+	margin: 0;
+  padding: 0;
+  float: right;
+  box-sizing: border-box;
+  height: var(--settings-row-padded);
 }
 input[type="number"] {
 	-moz-appearance: textfield;
-	margin: 0 1ch 0 0.4ch;
-	padding: 0px 1px;
-	width: 3ch;
+	margin-top: 0px;
+	padding: 1px 2px 1px 1px;
+  height: var(--settings-row-padded);
+	width: calc(3.1ch + 8px);
+	text-align: right;
+	font-size: 80%;
+	float: right;
+	box-sizing: border-box;
 }
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button {
  -webkit-appearance: none;
   margin: 0;
+}
+.settings label {
+	float: right;
+	width: max-content;
+	line-height: var(--settings-row-height);
+}
+.settings .cc-numrow label {
+}
+
+.clearfix::after {
+  content: "";
+  display: table;
+  clear: both;
 }
 
 @keyframes blink {
@@ -411,10 +489,11 @@ input[type="number"]::-webkit-inner-spin-button {
 }
 
 #about {
+	position: relative;
 	font-weight: bold;
 	font-family: Courier, monospace;
 	font-size: var(--sidebar-width);
-	translate: 0 calc(0px - var(--sidebar-width) / 7);
+	top: calc(0px - var(--sidebar-width) / 7) !important;
 }
 
 .center {
@@ -478,7 +557,7 @@ input[type="number"]::-webkit-inner-spin-button {
 	  overflow-y: scroll;
 	}
 	.onlymobile {
-		display: none;
+		display: none !important;
 	}
 }
 
@@ -496,6 +575,9 @@ input[type="number"]::-webkit-inner-spin-button {
   .col-sm-12 {
     width: 100%;
   }
+ 	:root {
+ 		--settings-row-height: calc(max(var(--cc-font-size) * 1.2, 20px));
+ 	}
   body {
   	font-family: Inconsolata, Consolas, Courier, monospace;
   	-ms-overflow-style: none;
@@ -506,7 +588,23 @@ input[type="number"]::-webkit-inner-spin-button {
   body::-webkit-scrollbar{
     display: none;
   }
+  .settings {
+  	font-size: var(--cc-font-size);
+  }
+  .settings td:first-child *:first-child {
+    right: calc(var(--fake-width)/44); /* fixed for all values of ch */
+  }
+  input type[="number"] {
+  	font-size: 100%;
+  	padding-right: 1px;
+  	width: calc(3.1ch + 7px);
+  }
   .nomobile {
-  	display: none;
+  	display: none !important;
+  }
+}
+@media (min-width: 376px) {
+  .settings tr.cc-numrow:first-of-type {
+  	margin-top: -2px;
   }
 }
