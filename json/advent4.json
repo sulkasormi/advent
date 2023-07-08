@@ -433,7 +433,13 @@
 "",
 "  HELP        Displays help",
 "  HELP HELP   Lists all verbs and motion words in the vocabulary"],
-["(Press any key or click/tap to continue)",
+["<l>(Press any key or click/tap to continue)",
 " "],
 ["Turn early magic on in the options if you're going to use it!"],
-["placeholder - this last message is currently msg #219/rSpeak #220"]]
+["The data for saved games is stored locally on your device.",
+"While it is not subject to expiry, be aware your saved games",
+"may be lost if you clear out your local storage or site data.",
+"There is no strict upper limit on how many save slots you can",
+"use, but each savefile requires approximately 1 KB of space.",
+""],
+["placeholder - this last message is currently msg #220/rSpeak #221"]]
