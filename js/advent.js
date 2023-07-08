@@ -56,6 +56,7 @@
   var yesHandler; /* callback function for multi-line input, notably used by yes() */
   var cursorPos = 1;
   var initState = 0;
+  var pfFlags = 0;
   var hasLocalStorage = false;
   var unsavedSettings = false;
   var timedFromStart = false;
@@ -67,7 +68,6 @@
   var lineWidth = 72;
   var linePos = 0;
   var flushTimer = 0;
-  var clAlignMode = false; /* left-of-center text align */
   var newLineReady = false; /* hack for tracking newlines */
   var weirdBreaksMode = 0; /* another newline-related hack */
   var maxPit = 72; /* you guessed it, newline hack */
@@ -93,6 +93,8 @@
     HINTM = 128,
     HINT = 240; /* hints are presently unimplemented */
   const MOTION = 0, NOUN = 1, VERB = 2, OTHER = 3;
+  const CL_ALIGN = 1, /* left-of-center align */
+    NO_NEWLINE = 2; /* tells printf to never force newlines */
 
 /* Browsers try to move cursor to the beginning or end of the
    input field when Up/Down are pressed. Overriding this is
@@ -285,11 +287,11 @@
           if (rule.selectorText.includes(".linebreak[data-minpit")) {
             let which = +(numify(rule.selectorText));
             loytty = true;
-            if ((which < lineWidth) == (which < tgtLineWidth)) continue;
-            if (which < tgtLineWidth) {
+            if ((which <= lineWidth) == (which <= tgtLineWidth)) continue;
+            if (which <= tgtLineWidth) {
               rule.style.setProperty("display", "block");
             }
-            else rule.style.setProperty("display", "inline-block");
+            else rule.style.setProperty("display", "none");
           }
           else if (rule.selectorText.includes(".linebreak[data-maxpit")) {
             let which = +(numify(rule.selectorText));
@@ -298,7 +300,7 @@
             if (which > tgtLineWidth) {
               rule.style.setProperty("display", "block");
             }
-            else rule.style.setProperty("display", "inline-block");
+            else rule.style.setProperty("display", "none");
           }
           else if (rule.selectorText.includes(".rsp-space[data-maxpit")) {
             let which = +(numify(rule.selectorText));
@@ -339,7 +341,7 @@
       updateTick();
     }
     trackWindowSize();
-    scroll();
+    if (assumeMobileMode > 0) scroll();
   }
 
   function wipe(a) {
@@ -459,7 +461,7 @@
   }
   /* Responsive line break (urgh) */
   function addResponsiveLineBreak(e, f = ccText) {
-    let b = document.createElement("div");
+    let b = document.createElement("br");
     b.classList.add("linebreak");
     if (!e) b.setAttribute("data-minpit", maxPit); 
     else b.setAttribute("data-maxpit", e);
@@ -494,9 +496,9 @@
     /* don't ask me what the {3,6,} is doing, as long as it makes the regex
        work I am not complaining */
     return args[0].replace(/^<l>/, function() {
-      clAlignMode = true;
+      pfFlags |= CL_ALIGN;
       return "";
-    }).replace(/((?<!%{3,6,})%([%a-z]|-?\d+s))|(\n)|^((?:\s|&nbsp(?!;)|\\u00a0|&nbsp;)+)|((?:\s|&nbsp(?!;)|\\u00a0|&nbsp;){2,})/g, function(m, p1, p2, p3, p4, p5, p6) {
+    }).replace(/((?<!%{3,6,})%([%a-z]|-?\d+s))|(\n)|^((?:\s|&nbsp(?!;)|\\u00a0|&nbsp;)+)|((?:\s|&nbsp(?!;)|\\u00a0|&nbsp;){2,})/g, function(m, p1, p2, p3, p4, p5) {
       if (p1 && (m.charAt(1) == '%')) return "%";
       if (p2 && p2.length > 1) {
         let leftAlign = (p2.charAt(0) == '-');
@@ -504,29 +506,30 @@
         let len = p2.match(/\d+/);
         let pit = len - arg.length;
         if (pit <= 0) return arg.slice(0, len);
-        let pad = "\u00a0".repeat(pit);
+        let pad = "\u00a0".repeat(pit - 1) + " ";
+        let pos = arguments[arguments.length - 2];
+        let s = arguments[arguments.length - 1];
+        if ((pos + m.length) >= s.length) pfFlags |= NO_NEWLINE;
         if (leftAlign) return arg + pad;
         else return pad + arg;
       }
       if (p3) return "<br>";
       let spaceCounter = 0;
       /* um, maybe I should have just used white-space: pre;? */ 
-      if (p4) return p4.replace(longSpaceMatcher, function(m, p1) {
-        spaceCounter++;
-        if (spaceCounter == 2) return " ";
-        return "\u00a0";
-      });
-      if (p5) return p5.replace(longSpaceMatcher, function(m, p1) {
-        spaceCounter++;
-        if (spaceCounter == 2) return " ";
-        return "\u00a0";
-      });
+      if (p4 || p5) {
+        let pP = (p4 || p5);
+        return pP.replace(longSpaceMatcher, function(m, p1) {
+          spaceCounter++;
+          if (spaceCounter == 2) return " ";
+          return "\u00a0";
+        });
+      }
       if ((typeof args[n]) === 'string') return uglyFormat(args[n++]);
       return args[n++];
     })/*.replace(/^<l>/, function(m, p1, str) {
       let len = str.replace(/(<br>)|^(<l>)/g, "").length;
       let pit = Math.floor(alignWidth() - len + 0.2) / 2;
-      clAlignMode = true;
+      pfFlags |= CL_ALIGN;
       if (pit < 1) return "";
       return "\u00a0".repeat(pit);
     })*/;
@@ -536,42 +539,48 @@
    * Most of this code is spent tackling that 
    * Weird breaks mode 2 means that newlines are avoided except in special situations */
   function printf(...args) {
-    clAlignMode = false;
+    pfFlags = 0;
     let newText = uglyFormat(...args);
     let tgt = ((weirdBreaksMode >= 3) ? ccAnyKey : ccText);
-    let pit, lineStart = 0, broken = false, forceNewLine = /\s($|<br>$)/.test(newText);
+    let pit, lineStart = 0, broken = false;
+    let forceNewLine = ((!(pfFlags & NO_NEWLINE)) && (/\s($|<br>$)/.test(newText)));
     let startNewLine = /^\s|^(\u00a0)|^(\\u00a0)/.test(newText);
+    let brRemoved = false, spaceRemoved = false;
     if (weirdBreaksMode >= 3) weirdBreaksMode -= 3;
     function newLine() {
       tgt.innerHTML += "<br>";
       if (weirdBreaksMode == 2) weirdBreaksMode--;
       maxPit = 72;
     }
-    if (((startNewLine) || (!(len()))) && (!clAlignMode) && (!newLineReady)) {
+    if (((startNewLine) || (!(len()))) && (!(pfFlags & CL_ALIGN)) && (!newLineReady)) {
       newLine();
     }
     function len() {
       pit = newText.replace(/(<br>)|(\s$)/g, "").length;
       return pit;
     }
-    if ((weirdBreaksMode == 2) && (!clAlignMode) && (!startNewLine)) {
-      newText = newText.replace(/(<br>)|(\s$)/g, " ");
+    function brRemove(bk = true) {
+      if (!brRemoved) brRemoved = newText.match(/<br>$/) ? pit : 0;
+      newText = newText.replace(/(<br>)|(\s$)/g, bk ? "" : " ");
     }
-    if ((startNewLine) && (!clAlignMode)) {
+    if ((weirdBreaksMode == 2) && (!(pfFlags & CL_ALIGN)) && (!startNewLine) && (len() > 40)) {
+      brRemove(false);
+    }
+    if ((startNewLine) && (!(pfFlags & CL_ALIGN))) {
       let verifyLineStart, spaceFinder = /[^.]\s((\s)|(\u00a0)|(\\u00a0)){2,}\b/g;
       while ((verifyLineStart = spaceFinder.exec(newText)) !== null) {
         lineStart = verifyLineStart.index + verifyLineStart[0].length;
       }
     }
-    if (clAlignMode) linePos = 100;
+    if (pfFlags & CL_ALIGN) linePos = 100;
     while ((weirdBreaksMode) && (((linePos + len()) > lineWidth) || (lineStart > 0))) {
       linePos = 0;
       if (!broken) {
-        newText = newText.replace(/(<br>)|(\s$)/g, "");
+        brRemove();
         broken = true;
         if (weirdBreaksMode == 1) weirdBreaksMode = 2;
       }
-      if ((clAlignMode) || (startNewLine)) {
+      if ((pfFlags & CL_ALIGN) || (startNewLine)) {
         maxPit = 72;
         if (lineStart) {
           let cell0 = document.createElement("div");
@@ -590,16 +599,16 @@
         }
         else {
           let splitPoint = -1, splitIsSpace = false;
-          if ((len() > lineWidth) || ((clAlignMode) && (pit > 40))) {
+          if ((len() > lineWidth) || ((pfFlags & CL_ALIGN) && (pit > 40))) {
             for (let i = Math.min(pit - 1, lineWidth); ((i > 0) && ((splitPoint < 0) || (i > Math.ceil(alignWidth() / 2) + 1))); i--) {
               if (/\s|(\u00a0)|(\\u00a0)|-/.test(newText.charAt(i))) {
                 splitPoint = i;
                 splitIsSpace = /\s|(\u00a0)|(\\u00a0)/.test(newText.charAt(i));
-                if (!clAlignMode) break;
+                if (!(pfFlags & CL_ALIGN)) break;
               }
             }
           }
-          if (clAlignMode) {
+          if (pfFlags & CL_ALIGN) {
             let table = document.createElement("div");
             table.style.display = "table";
             let alignedTxt = document.createElement("div");
@@ -645,26 +654,34 @@
     newLineReady = newText.match(/<br>$/);
     let customNewLine = false;
     if (newLineReady) {
-      if ((weirdBreaksMode == 1) && (!(clAlignMode || startNewLine)) && (pit > 40)) {
+      if ((weirdBreaksMode == 1) && (!((pfFlags & CL_ALIGN) || startNewLine)) && (pit > 40)) {
         newText = newText.slice(0, -4);
         customNewLine = true;
       }
     }
     else if (lineStart) newLineReady = true;
+    console.log(`${newText} ${newLineReady} ${customNewLine} ${brRemoved} ${broken} ${forceNewLine} ${weirdBreaksMode}`);
     tgt.innerHTML += newText;
     if (broken) {
-      if ((clAlignMode) || (forceNewLine)) {
+      if ((pfFlags & CL_ALIGN) || (forceNewLine)) {
         if (!newLineReady) tgt.innerHTML += "<br>";
         newLineReady = true;
         linePos = 0;
       }
       else {
-        tgt.innerHTML += " ";
+        /* tgt.innerHTML += " "; */
         linePos = 0;
       }
     }
+    function setMaxPit(comp = 72) {
+      comp = Math.min(comp, 72); /* paranoia */
+      maxPit = (maxPit == 72) ? Math.min(pit, maxPit) : Math.max(pit, maxPit);
+    }
     if (customNewLine) {
-      maxPit = Math.min(pit, maxPit);
+      setMaxPit(pit);
+    }
+    else if ((brRemoved) && (!newLineReady)) {
+      setMaxPit(brRemoved);
     }
     else maxPit = 72;
   }
@@ -3167,16 +3184,26 @@ robject = ${robject} in doTrav`);
    * only 6 words/line
    * unlike original, no pause after 20 lines */
   function outWords() {
-    var j = k = 0;
+    var j = 0;
+    let arr = [];
+    weirdBreaksMode = 1;
+    function arrText() {
+      return "%-12s".repeat(arr.length);
+    }
     for (let i in wordList) {
       let p = (typeof(wordList[i]) === 'object') ? vocab(wordList[i], 0) : wordList[i];
       if (isMotion(p) || isVerb(p)) {
         if (i == "gimme") continue;
-        printf("%-12s", i);
-        if ((++j % 6) == 0) printf("\n");
+        arr.push(i);
+        if (arr.length == 6) {
+          printf(arrText(), ...arr);
+          addResponsiveLineBreak();
+          arr.length = 0;
+        }
       }
     }
-    if (j % 6) printf("\n");
+    if (arr.length) printf(arrText(), ...arr);
+    weirdBreaksMode = 0;
   }
 
   /* display information about the game */
