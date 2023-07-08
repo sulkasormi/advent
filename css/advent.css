@@ -594,8 +594,8 @@ input[type="number"]::-webkit-inner-spin-button {
   .settings td:first-child *:first-child {
     right: calc(var(--fake-width)/44); /* fixed for all values of ch */
   }
-  input type[="number"] {
-  	font-size: 100%;
+  input[type="number"] {
+  	font-size: 85%;
   	padding-right: 1px;
   	width: calc(3.1ch + 7px);
   }

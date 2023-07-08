@@ -39,6 +39,7 @@
   var ccSizer = document.getElementById("ccinvisible");
   var ccTimer = document.getElementById("cctimer");
   var ccSettings = document.querySelector(".settings");
+  var ccAnyKey = document.getElementById("ccanykey");
   var textInput = "";
   var expectInput = 0; /* 0: inactive; 1: actions; 2: yes; 3: anykey; 4: numeric */
   var demoMode = 0;
@@ -537,10 +538,12 @@
   function printf(...args) {
     clAlignMode = false;
     let newText = uglyFormat(...args);
+    let tgt = ((weirdBreaksMode >= 3) ? ccAnyKey : ccText);
     let pit, lineStart = 0, broken = false, forceNewLine = /\s($|<br>$)/.test(newText);
     let startNewLine = /^\s|^(\u00a0)|^(\\u00a0)/.test(newText);
+    if (weirdBreaksMode >= 3) weirdBreaksMode -= 3;
     function newLine() {
-      ccText.innerHTML += "<br>";
+      tgt.innerHTML += "<br>";
       if (weirdBreaksMode == 2) weirdBreaksMode--;
       maxPit = 72;
     }
@@ -582,7 +585,7 @@
           cell2.style.display = "table-cell";
           cell2.innerHTML = newText.slice(lineStart);
           cell0.appendChild(cell2);
-          ccText.appendChild(cell0);
+          tgt.appendChild(cell0);
           newText = "";
         }
         else {
@@ -631,7 +634,7 @@
               }
             }
             table.appendChild(alignedTxt);
-            ccText.appendChild(table);
+            tgt.appendChild(table);
             newText = "";
           }
         }
@@ -648,15 +651,15 @@
       }
     }
     else if (lineStart) newLineReady = true;
-    ccText.innerHTML += newText;
+    tgt.innerHTML += newText;
     if (broken) {
       if ((clAlignMode) || (forceNewLine)) {
-        if (!newLineReady) ccText.innerHTML += "<br>";
+        if (!newLineReady) tgt.innerHTML += "<br>";
         newLineReady = true;
         linePos = 0;
       }
       else {
-        ccText.innerHTML += " ";
+        tgt.innerHTML += " ";
         linePos = 0;
       }
     }
@@ -1333,6 +1336,16 @@
     requestInput(4);
   }
 
+  var saveWarner = (function() {
+    let warned = false;
+    return function(mode) {
+      if (mode) warned = true;
+      if (warned) return;
+      rSpeak(220);
+      warned = true;
+    }
+  })();
+
   function saveGame() {
     if (!hasLocalStorage) {
       rSpeak(204);
@@ -1364,6 +1377,7 @@
     }
     else {
       rSpeak(54);
+      saveWarner();
       exitCode4(spot);
       return;
     }
@@ -1433,6 +1447,7 @@
 
   function requestInput(e = 1) {
     flushInput();
+    if (expectInput == 3) ccAnyKey.classList.add("invisible");
     expectInput = e;
     ccParser.style.display = 'inline';
     ccCursor.style.display = 'inline-block';
@@ -1445,6 +1460,7 @@
     unfocus();
     ccParser.style.display = 'none';
     ccCursor.style.display = 'none';
+    if (e == 3) ccAnyKey.classList.remove("invisible");
   }
 
   function setAllParsers(j) {
@@ -1484,7 +1500,8 @@
   }
 
   function scroll() {
-    ccParser.scrollIntoView();
+    if (expectInput != 3) ccParser.scrollIntoView();
+    else ccAnyKey.scrollIntoView();
 /*  const scrTgt = (document.scrollingElement || document.body);
     scrTgt.scrollTop = scrTgt.scrollHeight; */
   }
@@ -1559,6 +1576,7 @@
     }
     if (expectInput == 3) {
       setAllParsers("");
+      ccAnyKey.classList.add("invisible");
       requestInput();
       yesHandler();
       return;
@@ -2527,18 +2545,20 @@ robject = ${robject} in doTrav`);
       bug(34);
       return;
     }
+    if (msg == 217) weirdBreaksMode = 3; /* populate anykey */
     mSpeak(msgList[msg]);
   }
 
   function mSpeak(arr, noEmpty = false) {
     if (!arr) return;
-    weirdBreaksMode = 1;
+    weirdBreaksMode++;
+    let tgt = (weirdBreaksMode > 3) ? ccAnyKey : ccText;
     for (let i = 0; i < arr.length; i++) {
       let newLine = (!noEmpty) || (arr[i].length > 0);
       printf("%s%s", (arr[i].length ? arr[i] : " "), newLine ? "\n" : "");
       if (maxPit != 72) {
         if ((i == arr.length - 1) || (arr[i+1].length < 2)) {
-          ccText.innerHTML += "<br>";
+          tgt.innerHTML += "<br>";
           newLineReady = true;
           continue;
         }
@@ -2548,7 +2568,7 @@ robject = ${robject} in doTrav`);
     weirdBreaksMode = 0;
     maxPit = 72;
     if (!newLineReady) {
-      ccText.innerHTML += "<br>";
+      tgt.innerHTML += "<br>";
     }
     else newLineReady = false;
     if (expectInput == 3) scroll();
@@ -2920,7 +2940,6 @@ robject = ${robject} in doTrav`);
           else if ((expectInput == 2) && (!g.turns)) {
             feedInput("y");
             disableInput(3);
-            rSpeak(218);
             yesHandler = () => { requestInput(); feedInput("about"); };
           }
         }
@@ -2955,6 +2974,7 @@ robject = ${robject} in doTrav`);
         document.getElementById("playarea").style.textTransform = "uppercase";
       }
       if (S.problemBrowser == assumeProblemBrowser) toggleMargin(0);
+      rSpeak(218);
     }
     else { /* on init this is done by checkLocalStorage 
             * (only if storage exists, but we can't track
@@ -3163,7 +3183,6 @@ robject = ${robject} in doTrav`);
   function doAbout() {
     disableInput(3);
     rSpeak(216);
-    rSpeak(218);
     scroll();
     yesHandler = () => { disableInput(3); rSpeak(217); requestInput(); };
   }
